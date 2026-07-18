@@ -739,7 +739,7 @@ async def start_mass_check(user_id, cards, sites, event):
                             await update_progress(user_id, status_msg.id, all_results, all_results['checked'])
                         except:
                             pass
-        workers = [asyncio.create_task(worker()) for _ in range(10)]
+        workers = [asyncio.create_task(worker()) for _ in range(40)]
         while workers:
             if session_key not in active_sessions:
                 for w in workers:
