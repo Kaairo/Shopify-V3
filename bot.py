@@ -386,7 +386,7 @@ async def check_card(card, site, proxy):
         url = f'{CHECKER_API_URL}?site={site}&cc={card}'
         if proxy_str:
             url += f'&proxy={proxy_str}'
-        timeout = aiohttp.ClientTimeout(total=8)
+        timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
@@ -451,7 +451,7 @@ async def test_site_with_price(site, proxy, retries=2):
         url += f'&proxy={proxy_str}'
     for attempt in range(retries):
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
+            timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
@@ -1596,21 +1596,19 @@ async def site_command(event):
     dead_sites = []
     sites_with_price = []
     try:
-        semaphore = asyncio.Semaphore(60)
         fresh_proxies = load_proxies() or proxies
-        async def check_site_task(site):
-            async with semaphore:
-                return await test_site_with_price(site, random.choice(fresh_proxies))
-        tasks = [check_site_task(site) for site in sites]
-        for coro in asyncio.as_completed(tasks):
-            res = await coro
-            if res['status'] == 'alive':
-                alive_sites.append(res['site'])
-                sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
-            else:
-                dead_sites.append(res['site'])
-            if (len(alive_sites) + len(dead_sites)) % 50 == 0:
-                await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\nAʟɪᴠᴇ: {len(alive_sites)}\nDᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
+        batch_size = 10
+        for i in range(0, len(sites), batch_size):
+            batch = sites[i:i + batch_size]
+            tasks = [test_site_with_price(site, random.choice(fresh_proxies)) for site in batch]
+            results = await asyncio.gather(*tasks)
+            for res in results:
+                if res['status'] == 'alive':
+                    alive_sites.append(res['site'])
+                    sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
+                else:
+                    dead_sites.append(res['site'])
+            await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\nAʟɪᴠᴇ: {len(alive_sites)}\nDᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
         async with aiofiles.open(SITES_FILE, 'w') as f:
             for site in alive_sites:
                 await f.write(f"{site}\n")
@@ -1671,20 +1669,18 @@ async def add_sites_command(event):
         alive_sites = []
         dead_sites = []
         sites_with_price = []
-        semaphore = asyncio.Semaphore(60)
-        async def check_site_worker(site):
-            async with semaphore:
-                return await test_site_with_price(site, random.choice(proxies))
-        tasks = [check_site_worker(site) for site in sites]
-        for coro in asyncio.as_completed(tasks):
-            res = await coro
-            if res['status'] == 'alive':
-                alive_sites.append(res['site'])
-                sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
-            else:
-                dead_sites.append(res['site'])
-            if (len(alive_sites) + len(dead_sites)) % 50 == 0:
-                await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\n✅ Aʟɪᴠᴇ: {len(alive_sites)}\n❌ Dᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
+        batch_size = 10
+        for i in range(0, len(sites), batch_size):
+            batch = sites[i:i + batch_size]
+            tasks = [test_site_with_price(site, random.choice(proxies)) for site in batch]
+            results = await asyncio.gather(*tasks)
+            for res in results:
+                if res['status'] == 'alive':
+                    alive_sites.append(res['site'])
+                    sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
+                else:
+                    dead_sites.append(res['site'])
+            await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\n✅ Aʟɪᴠᴇ: {len(alive_sites)}\n❌ Dᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
         async with aiofiles.open(SITES_FILE, 'w') as f:
             for site in alive_sites:
                 await f.write(f"{site}\n")
