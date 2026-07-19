@@ -280,44 +280,32 @@ def is_site_dead(response_msg, gateway, price):
         return True
     if "Shopify" not in gateway:
         return True
-    price_str = str(price)
-    if price_str in ["-", "$-", "$0", "$0.0", "0", "$0.00"]:
-        return True
-    
+
     response_lower = response_msg.lower()
+
+    # Only hard-fail on truly dead keywords
     dead_keywords = [
-        'receipt id is empty', 'handle is empty', 'product id is empty',
-        'tax amount is empty', 'payment method identifier is empty',
         'invalid url', 'error in 1st req', 'error in 1 req',
-        'cloudflare', 'connection failed', 'timed out',
-        'access denied', 'tlsv1 alert', 'ssl routines',
         'could not resolve', 'domain name not found',
         'name or service not known', 'openssl ssl_connect',
-        'empty reply from server', 'httperror504', 'http error',
-        'httperror504', 'timeout', 'unreachable', 'ssl error',
-        '502', '503', '504', 'bad gateway', 'service unavailable',
-        'gateway timeout', 'network error', 'connection reset',
-        'failed to detect product', 'failed to create checkout',
-        'failed to tokenize card', 'failed to get proposal data',
-        'submit rejected', 'handle error', 'http 404',
-        'delivery_delivery_line_detail_changed', 'delivery_address2_required',
-        'url rejected', 'malformed input', 'amount_too_small', 'amount too small',
-        'site dead', 'site dead', 'captcha_required', 'captcha required',
-        'site errors', 'site errors: failed to tokenize card', 'failed',
+        'empty reply from server', 'httperror504',
+        'bad gateway', 'service unavailable', 'gateway timeout',
+        'connection reset', 'failed to detect product',
+        'url rejected', 'malformed input',
+        'site dead', 'captcha_required', 'captcha required',
         'not supported', 'unsupported', 'site not supported',
-        'invalid site', 'connection refused', 'forbidden',
+        'invalid site', 'connection refused',
         'no response', 'host not found', 'domain not found',
-        'could not connect', 'connection error', 'request timeout',
-        'gateway error', 'internal server error', 'server error',
-        'page not found', 'not found', 'http 500', 'http 502',
-        'http 503', 'http 504', 'cloudflare error', 'cf-error',
-        'cf-ray', 'challenge required', 'blocked', 'access blocked'
+        'could not connect', 'http 500', 'http 502',
+        'http 503', 'http 504', 'cf-error', 'challenge required',
+        'access blocked', 'failed to create checkout',
+        'failed to get proposal data'
     ]
-    
+
     for keyword in dead_keywords:
         if keyword in response_lower:
             return True
-    
+
     return False
 
 async def get_bin_info(card_number):
@@ -398,7 +386,7 @@ async def check_card(card, site, proxy):
         url = f'{CHECKER_API_URL}?site={site}&cc={card}'
         if proxy_str:
             url += f'&proxy={proxy_str}'
-        timeout = aiohttp.ClientTimeout(total=100)
+        timeout = aiohttp.ClientTimeout(total=8)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
@@ -430,7 +418,7 @@ async def check_card(card, site, proxy):
     except Exception as e:
         return {'status': 'Dead', 'message': str(e), 'card': card, 'gateway': 'Unknown', 'price': '-', 'price_value': 0}
 
-async def check_card_with_retry(card, sites, proxies, max_retries=20):
+async def check_card_with_retry(card, sites, proxies, max_retries=1):
     if not sites:
         return {'status': 'Dead', 'message': 'No sites available', 'card': card, 'gateway': 'Unknown', 'price': '-', 'price_value': 0}
     if not proxies:
@@ -442,45 +430,55 @@ async def check_card_with_retry(card, sites, proxies, max_retries=20):
         if not result.get('retry'):
             return result
         if attempt < max_retries - 1:
-            await asyncio.sleep(2)
+            await asyncio.sleep(0)
     return {'status': 'Dead', 'message': 'Max retries exceeded', 'card': card, 'gateway': 'Unknown', 'price': '-', 'price_value': 0}
 
-async def test_site_with_price(site, proxy):
+async def test_site_with_price(site, proxy, retries=2):
     test_card = "4031630422575208|01|2030|280"
-    try:
-        if not site.startswith('http'):
-            site = f'https://{site}'
-        proxy_str = None
-        if proxy:
-            proxy_parts = proxy.split(':')
-            if len(proxy_parts) == 4:
-                ip, port, user, password = proxy_parts
-                proxy_str = f"{ip}:{port}:{user}:{password}"
-            elif len(proxy_parts) == 2:
-                ip, port = proxy_parts
-                proxy_str = f"{ip}:{port}"
-        url = f'{CHECKER_API_URL}?site={site}&cc={test_card}'
-        if proxy_str:
-            url += f'&proxy={proxy_str}'
-        timeout = aiohttp.ClientTimeout(total=60)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return {'site': site, 'status': 'dead', 'price': 0.0}
-                try:
-                    raw = await resp.json()
-                except:
-                    return {'site': site, 'status': 'dead', 'price': 0.0}
-        response_msg = raw.get('Response', '')
-        gateway = raw.get('Gateway', '')
-        price_display = raw.get('Price', '-')
-        price_value = get_price_from_response(raw)
-        if is_site_dead(response_msg, gateway, price_display):
+    if not site.startswith('http'):
+        site = f'https://{site}'
+    proxy_str = None
+    if proxy:
+        proxy_parts = proxy.split(':')
+        if len(proxy_parts) == 4:
+            ip, port, user, password = proxy_parts
+            proxy_str = f"{ip}:{port}:{user}:{password}"
+        elif len(proxy_parts) == 2:
+            ip, port = proxy_parts
+            proxy_str = f"{ip}:{port}"
+    url = f'{CHECKER_API_URL}?site={site}&cc={test_card}'
+    if proxy_str:
+        url += f'&proxy={proxy_str}'
+    for attempt in range(retries):
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        if attempt < retries - 1:
+                            continue
+                        return {'site': site, 'status': 'dead', 'price': 0.0}
+                    try:
+                        raw = await resp.json()
+                    except:
+                        if attempt < retries - 1:
+                            continue
+                        return {'site': site, 'status': 'dead', 'price': 0.0}
+            response_msg = raw.get('Response', '')
+            gateway = raw.get('Gateway', '')
+            price_display = raw.get('Price', '-')
+            price_value = get_price_from_response(raw)
+            if is_site_dead(response_msg, gateway, price_display):
+                if attempt < retries - 1:
+                    continue
+                return {'site': site, 'status': 'dead', 'price': 0.0}
+            else:
+                return {'site': site, 'status': 'alive', 'price': price_value}
+        except Exception:
+            if attempt < retries - 1:
+                continue
             return {'site': site, 'status': 'dead', 'price': 0.0}
-        else:
-            return {'site': site, 'status': 'alive', 'price': price_value}
-    except:
-        return {'site': site, 'status': 'dead', 'price': 0.0}
+    return {'site': site, 'status': 'dead', 'price': 0.0}
 
 async def test_proxy(proxy):
     try:
@@ -696,7 +694,7 @@ async def start_mass_check(user_id, cards, sites, event):
                 if not session_state:
                     break
                 while session_state.get('paused', False):
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5)
                     session_state = active_sessions.get(session_key)
                     if not session_state:
                         return
@@ -705,10 +703,10 @@ async def start_mass_check(user_id, cards, sites, event):
                 except asyncio.QueueEmpty:
                     break
                 current_sites = sites
-                current_proxies = load_proxies()
+                current_proxies = proxies
                 if not current_sites or not current_proxies:
                     break
-                res = await check_card_with_retry(card, current_sites, current_proxies, max_retries=20)
+                res = await check_card_with_retry(card, current_sites, current_proxies, max_retries=1)
                 all_results['checked'] += 1
                 all_results['last_card'] = card
                 all_results['last_response'] = res.get('message', '')[:50]
@@ -1314,7 +1312,7 @@ async def single_cc_check(event):
     card = cards[0]
     status_msg = await event.reply(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ <code>{card}</code>..."), parse_mode='html')
     try:
-        result = await check_card_with_retry(card, sites, proxies, max_retries=20)
+        result = await check_card_with_retry(card, sites, proxies, max_retries=1)
         brand, bin_type, level, bank, country, flag = await get_bin_info(card.split('|')[0])
         if result['status'] == 'Charged':
             status_header = "💎 CHARGED"
