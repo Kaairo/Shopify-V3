@@ -739,7 +739,7 @@ async def start_mass_check(user_id, cards, sites, event):
                             await update_progress(user_id, status_msg.id, all_results, all_results['checked'])
                         except:
                             pass
-        workers = [asyncio.create_task(worker()) for _ in range(40)]
+        workers = [asyncio.create_task(worker()) for _ in range(60)]
         while workers:
             if session_key not in active_sessions:
                 for w in workers:
@@ -1046,7 +1046,7 @@ async def start(event):
 ▸ ᴘʟɴ  · {plan}
 ▸ Sʜᴏᴘɪғʏ
 ━━━━━━━━━━━━━━━━━
-<code>/cc</code> · <code>/chk</code> · <code>/redeem</code>
+<code>/sh</code> · <code>/mstxt</code> · <code>/redeem</code>
 ━━━━━━━━━━━━━━━━━
 One day I will be the best 
 💡 Bᴏᴛ Dᴇᴠ @Xyoshy
@@ -1061,8 +1061,8 @@ async def show_commands_callback(event):
     commands_text = """📋 Usᴇʀ Cᴏᴍᴍᴀɴᴅs
 
 🛒 Sʜᴏᴘɪғʏ
-├─ <code>/cc ᴄᴄ|ᴍᴍ|ʏʏ|ᴄᴠᴠ</code> → Cʜᴇᴄᴋ sɪɴɢʟᴇ ᴄᴀʀᴅ
-└─ <code>/chk</code> → Mᴀss ᴄʜᴇᴄᴋ ғʀᴏᴍ .ᴛxᴛ ғɪʟᴇ
+├─ <code>/sh ᴄᴄ|ᴍᴍ|ʏʏ|ᴄᴠᴠ</code> → Cʜᴇᴄᴋ sɪɴɢʟᴇ ᴄᴀʀᴅ
+└─ <code>/mstxt</code> → Mᴀss ᴄʜᴇᴄᴋ ғʀᴏᴍ .ᴛxᴛ ғɪʟᴇ
 
 
 🔑 Kᴇʏ Sʏsᴛᴇᴍ
@@ -1142,7 +1142,7 @@ async def main_menu_callback(event):
 ▸ ᴘʟɴ  · {plan}
 ▸ Sʜᴏᴘɪғʏ
 ━━━━━━━━━━━━━━━━━
-<code>/cc</code> · <code>/chk</code> · <code>/redeem</code>
+<code>/sh</code> · <code>/mstxt</code> · <code>/redeem</code>
 ━━━━━━━━━━━━━━━━━
 One day I will be the best 
 💡 Bᴏᴛ Dᴇᴠ @Xyoshy
@@ -1287,7 +1287,7 @@ async def cancel_filter_callback(event):
     await event.edit(premium_emoji("❌ Cᴀɴᴄᴇʟʟᴇᴅ."), parse_mode='html')
     await event.answer("✅ Cᴀɴᴄᴇʟʟᴇᴅ", alert=True)
 
-@bot.on(events.NewMessage(pattern=r'/cc\s+'))
+@bot.on(events.NewMessage(pattern=r'/sh\s+'))
 async def single_cc_check(event):
     user_id = event.sender_id
     try:
@@ -1309,7 +1309,7 @@ async def single_cc_check(event):
     cc_input = event.message.text.split(' ', 1)[1].strip()
     cards = extract_cc(cc_input)
     if not cards:
-        await event.reply(premium_emoji("❌ Iɴᴠᴀʟɪᴅ CC ғᴏʀᴍᴀᴛ. Usᴇ: <code>/cc ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ</code>"), parse_mode='html')
+        await event.reply(premium_emoji("❌ Iɴᴠᴀʟɪᴅ CC ғᴏʀᴍᴀᴛ. Usᴇ: <code>/sh ᴄᴀʀᴅ|ᴍᴍ|ʏʏ|ᴄᴠᴠ</code>"), parse_mode='html')
         return
     card = cards[0]
     status_msg = await event.reply(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ <code>{card}</code>..."), parse_mode='html')
@@ -1341,7 +1341,7 @@ async def single_cc_check(event):
     except Exception as e:
         await status_msg.edit(premium_emoji(f"❌ Eʀʀᴏʀ: {e}"), parse_mode='html')
 
-@bot.on(events.NewMessage(pattern='/chk'))
+@bot.on(events.NewMessage(pattern='/mstxt'))
 async def check_command(event):
     user_id = event.sender_id
     try:
@@ -1597,22 +1597,22 @@ async def site_command(event):
     alive_sites = []
     dead_sites = []
     sites_with_price = []
-    batch_size = 10
     try:
-        for i in range(0, len(sites), batch_size):
-            batch = sites[i:i + batch_size]
-            fresh_proxies = load_proxies()
-            if not fresh_proxies:
-                fresh_proxies = proxies
-            tasks = [test_site_with_price(site, random.choice(fresh_proxies)) for site in batch]
-            results = await asyncio.gather(*tasks)
-            for res in results:
-                if res['status'] == 'alive':
-                    alive_sites.append(res['site'])
-                    sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
-                else:
-                    dead_sites.append(res['site'])
-            await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\nAʟɪᴠᴇ: {len(alive_sites)}\nDᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
+        semaphore = asyncio.Semaphore(60)
+        fresh_proxies = load_proxies() or proxies
+        async def check_site_task(site):
+            async with semaphore:
+                return await test_site_with_price(site, random.choice(fresh_proxies))
+        tasks = [check_site_task(site) for site in sites]
+        for coro in asyncio.as_completed(tasks):
+            res = await coro
+            if res['status'] == 'alive':
+                alive_sites.append(res['site'])
+                sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
+            else:
+                dead_sites.append(res['site'])
+            if (len(alive_sites) + len(dead_sites)) % 50 == 0:
+                await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\nAʟɪᴠᴇ: {len(alive_sites)}\nDᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
         async with aiofiles.open(SITES_FILE, 'w') as f:
             for site in alive_sites:
                 await f.write(f"{site}\n")
@@ -1673,18 +1673,20 @@ async def add_sites_command(event):
         alive_sites = []
         dead_sites = []
         sites_with_price = []
-        batch_size = 10
-        for i in range(0, len(sites), batch_size):
-            batch = sites[i:i + batch_size]
-            tasks = [test_site_with_price(site, random.choice(proxies)) for site in batch]
-            results = await asyncio.gather(*tasks)
-            for res in results:
-                if res['status'] == 'alive':
-                    alive_sites.append(res['site'])
-                    sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
-                else:
-                    dead_sites.append(res['site'])
-            await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\n✅ Aʟɪᴠᴇ: {len(alive_sites)}\n❌ Dᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
+        semaphore = asyncio.Semaphore(60)
+        async def check_site_worker(site):
+            async with semaphore:
+                return await test_site_with_price(site, random.choice(proxies))
+        tasks = [check_site_worker(site) for site in sites]
+        for coro in asyncio.as_completed(tasks):
+            res = await coro
+            if res['status'] == 'alive':
+                alive_sites.append(res['site'])
+                sites_with_price.append({'url': res['site'], 'price': res.get('price', 0.0)})
+            else:
+                dead_sites.append(res['site'])
+            if (len(alive_sites) + len(dead_sites)) % 50 == 0:
+                await status_msg.edit(premium_emoji(f"🔄 Cʜᴇᴄᴋɪɴɢ sɪᴛᴇs...\n\nCʜᴇᴄᴋᴇᴅ: {len(alive_sites) + len(dead_sites)}/{len(sites)}\n✅ Aʟɪᴠᴇ: {len(alive_sites)}\n❌ Dᴇᴀᴅ: {len(dead_sites)}"), parse_mode='html')
         async with aiofiles.open(SITES_FILE, 'w') as f:
             for site in alive_sites:
                 await f.write(f"{site}\n")
